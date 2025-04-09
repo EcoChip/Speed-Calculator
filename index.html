@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calculadora de Velocidad Sprint</title>
+  <title>Velocidad Sprint</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -12,22 +13,22 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 100vh;
-      margin: 0;
+      padding: 2rem;
     }
     .container {
       background: white;
       padding: 2rem;
       border-radius: 20px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      max-width: 400px;
+      max-width: 500px;
       width: 100%;
+      margin-bottom: 2rem;
     }
     h1 {
       text-align: center;
       margin-bottom: 1rem;
     }
-    input {
+    input, button {
       width: 100%;
       padding: 0.5rem;
       margin-bottom: 1rem;
@@ -35,36 +36,118 @@
       border-radius: 10px;
     }
     button {
-      width: 100%;
-      padding: 0.75rem;
       background-color: #2563eb;
       color: white;
-      border: none;
-      border-radius: 10px;
       font-size: 1rem;
       cursor: pointer;
     }
     button:hover {
       background-color: #1d4ed8;
     }
-    .resultado {
+    .resultado, .emoji {
       margin-top: 1rem;
       font-weight: bold;
       font-size: 1.2rem;
       text-align: center;
+    }
+    .cronometro {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    .quick-buttons button {
+      width: 30%;
+      margin: 0.2rem;
+      font-size: 0.9rem;
+    }
+    table {
+      width: 100%;
+      margin-top: 1rem;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 0.5rem;
+      text-align: center;
+      border: 1px solid #ccc;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Velocidad Sprint</h1>
+
+    <div class="cronometro" id="cronometro">00:00.00</div>
+    <button onclick="iniciarCronometro()">Iniciar Cronómetro</button>
+    <button onclick="detenerCronometro()">Detener Cronómetro</button>
+
+    <div class="quick-buttons">
+      <button onclick="setDistancia(10)">10 m</button>
+      <button onclick="setDistancia(20)">20 m</button>
+      <button onclick="setDistancia(30)">30 m</button>
+    </div>
+
     <input type="number" id="distancia" placeholder="Distancia (metros)">
     <input type="number" step="0.01" id="tiempo" placeholder="Tiempo (segundos)">
     <button onclick="calcularVelocidad()">Calcular</button>
+
     <div class="resultado" id="resultado"></div>
+    <div class="emoji" id="emoji"></div>
+
+    <table id="historialTable">
+      <thead>
+        <tr>
+          <th>Distancia</th>
+          <th>Tiempo</th>
+          <th>Velocidad</th>
+          <th>Emoji</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="container">
+    <h2 style="text-align:center;">Gráfica de Velocidad</h2>
+    <canvas id="graficaVelocidad"></canvas>
   </div>
 
   <script>
+    let tiempoInicio, intervalo, corriendo = false;
+    let historial = [];
+
+    function iniciarCronometro() {
+      if (!corriendo) {
+        tiempoInicio = Date.now();
+        intervalo = setInterval(actualizarCronometro, 10);
+        corriendo = true;
+      }
+    }
+
+    function detenerCronometro() {
+      if (corriendo) {
+        clearInterval(intervalo);
+        corriendo = false;
+        const tiempoFinal = (Date.now() - tiempoInicio) / 1000;
+        document.getElementById("tiempo").value = tiempoFinal.toFixed(2);
+      }
+    }
+
+    function actualizarCronometro() {
+      const tiempoTranscurrido = Date.now() - tiempoInicio;
+      const segundos = (tiempoTranscurrido / 1000).toFixed(2);
+      document.getElementById("cronometro").textContent = formatTiempo(segundos);
+    }
+
+    function formatTiempo(segundos) {
+      const minutos = Math.floor(segundos / 60);
+      const segundosRestantes = (segundos % 60).toFixed(2);
+      return `${String(minutos).padStart(2, '0')}:${segundosRestantes}`;
+    }
+
+    function setDistancia(metros) {
+      document.getElementById("distancia").value = metros;
+    }
+
     function calcularVelocidad() {
       const distancia = parseFloat(document.getElementById("distancia").value);
       const tiempo = parseFloat(document.getElementById("tiempo").value);
@@ -76,6 +159,58 @@
 
       const velocidad = (distancia * 3.6) / tiempo;
       document.getElementById("resultado").textContent = `Tu velocidad es ${velocidad.toFixed(2)} km/h`;
+      const emoji = getEmoji(velocidad);
+      document.getElementById("emoji").textContent = emoji;
+
+      historial.push({ distancia, tiempo, velocidad: velocidad.toFixed(2), emoji });
+      actualizarHistorial();
+      actualizarGrafica();
+    }
+
+    function getEmoji(velocidad) {
+      if (velocidad < 20) return "🐢";
+      if (velocidad < 30) return "🏃‍♂️";
+      if (velocidad < 35) return "🐆";
+      return "⚡️";
+    }
+
+    function actualizarHistorial() {
+      const tbody = document.querySelector("#historialTable tbody");
+      tbody.innerHTML = "";
+      historial.slice().reverse().forEach(entry => {
+        const row = `<tr><td>${entry.distancia} m</td><td>${entry.tiempo}s</td><td>${entry.velocidad} km/h</td><td>${entry.emoji}</td></tr>`;
+        tbody.innerHTML += row;
+      });
+    }
+
+    function actualizarGrafica() {
+      const labels = historial.map((_, i) => `Intento ${i + 1}`);
+      const data = historial.map(h => parseFloat(h.velocidad));
+
+      if (window.chart) window.chart.destroy();
+
+      const ctx = document.getElementById('graficaVelocidad').getContext('2d');
+      window.chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Velocidad (km/h)',
+            data: data,
+            borderColor: 'rgb(37, 99, 235)',
+            fill: false,
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
     }
   </script>
 </body>
