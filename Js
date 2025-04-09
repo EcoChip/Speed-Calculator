@@ -1,0 +1,1 @@
+navigator.clipboard.writeText(`Corrí a ${velocidad} km/h 😎`);
